@@ -114,18 +114,21 @@ struct DashboardView: View {
 struct QuickAddBar: View {
     @State private var showSearch = false
     @State private var showBarcode = false
+    @State private var showSnap = false
     @State private var showExercise = false
     @State private var showWater = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             button("Food", "magnifyingglass") { showSearch = true }
             button("Scan", "barcode.viewfinder") { showBarcode = true }
+            button("Snap It", "camera.viewfinder") { showSnap = true }
             button("Exercise", "figure.run") { showExercise = true }
             button("Water", "drop.fill") { showWater = true }
         }
         .sheet(isPresented: $showSearch) { FoodSearchView(meal: .snacks) }
         .sheet(isPresented: $showBarcode) { BarcodeScanView(meal: .snacks) }
+        .sheet(isPresented: $showSnap) { SnapItView(meal: .snacks) }
         .sheet(isPresented: $showExercise) { ExerciseLogView() }
         .sheet(isPresented: $showWater) { WaterLogView() }
     }

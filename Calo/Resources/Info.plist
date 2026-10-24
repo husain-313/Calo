@@ -37,7 +37,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Used to scan food barcodes.</string>
+	<string>Used to scan food barcodes and photograph meals for Snap It.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to pick a meal photo for Snap It food recognition.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Reads steps, active energy, weight and workouts to track your day.</string>
 	<key>NSHealthUpdateUsageDescription</key>
