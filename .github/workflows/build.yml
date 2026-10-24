@@ -34,7 +34,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build | xcpretty || true
+            clean build
 
       - name: Package unsigned IPA
         run: |
