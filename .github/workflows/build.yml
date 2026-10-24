@@ -6,21 +6,22 @@ on:
     tags: [ "v*" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Select newest Xcode
+      - name: Use the newest stable Xcode
         run: |
-          XC="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
-          echo "Using $XC"
-          sudo xcode-select -s "$XC"
+          ls -d /Applications/Xcode*.app || true
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -Evi 'beta|release_candidate|_rc' | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
           xcodebuild -version
-          echo "--- installed simulator runtimes ---"
-          xcrun simctl list runtimes || true
+          xcodebuild -showsdks | grep -i iphoneos || true
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -28,42 +29,54 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build (unsigned, device)
+      - name: Build (unsigned)
         run: |
           set -o pipefail
           xcodebuild \
             -project Calo.xcodeproj \
             -scheme Calo \
             -configuration Release \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGNING_ALLOWED=NO \
-            clean build
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build 2>&1 | tee build.log || {
+              grep -E "error:" build.log | sort -u | head -20 | while IFS= read -r line; do
+                echo "::error::${line}"
+              done
+              exit 1
+            }
 
-      - name: Package unsigned IPA
+      - name: Package IPA
         run: |
           set -e
-          APP_PATH="build/Build/Products/Release-iphoneos/Calo.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "App not found at $APP_PATH"; exit 1
-          fi
+          APP="build/Build/Products/Release-iphoneos/Calo.app"
           mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-          zip -qr Calo-unsigned.ipa Payload
-          rm -rf Payload
-          echo "Built Calo-unsigned.ipa"
+          cp -R "$APP" Payload/
+          # Ad-hoc sign with entitlements so signing tools keep the HealthKit access.
+          codesign --force --sign - --entitlements Calo/Resources/Calo.entitlements Payload/Calo.app
+          codesign -d --entitlements - Payload/Calo.app || true
+          zip -qry Calo.ipa Payload
+          ls -lh Calo.ipa
 
-      - name: Upload artifact
+      - name: Upload IPA (Actions)
         uses: actions/upload-artifact@v4
         with:
-          name: Calo-unsigned-ipa
-          path: Calo-unsigned.ipa
+          name: Calo-ipa
+          path: Calo.ipa
           if-no-files-found: error
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish release with the IPA
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: Calo-unsigned.ipa
+          tag_name: build-${{ github.run_number }}
+          name: Calo (build ${{ github.run_number }})
+          body: |
+            Unsigned IPA. Install with Sideloadly, AltStore or a similar signing tool.
+            iPhone and iPad, iOS 17 or later.
+          files: Calo.ipa
+          make_latest: true
