@@ -1,0 +1,41 @@
+name: Build Core ML food model
+
+# Manual only — converting the model is slow and rarely changes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  model:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install converters
+        run: |
+          python -m pip install --upgrade pip
+          pip install "torch>=2.2" "transformers>=4.40" "coremltools>=8.0" pillow sentencepiece
+
+      - name: Convert Food-101 model to Core ML
+        run: python tools/convert_food_model.py
+
+      - name: Zip the model package
+        run: |
+          cd Calo/Resources
+          zip -qry FoodModel.mlpackage.zip FoodModel.mlpackage
+          ls -lh FoodModel.mlpackage.zip
+
+      - name: Publish model as a release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: model-latest
+          name: Calo food model
+          body: Food-101 Core ML model for Snap It. Downloaded automatically by the app build.
+          files: Calo/Resources/FoodModel.mlpackage.zip
+          make_latest: false

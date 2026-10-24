@@ -25,6 +25,7 @@ struct SnapItView: View {
                 VStack(spacing: 20) {
                     imageArea
                     sourceButtons
+                    engineNote
 
                     if analyzing {
                         HStack { ProgressView(); Text("Recognizing food…") }
@@ -85,6 +86,13 @@ struct SnapItView: View {
             }
             .buttonStyle(.bordered)
         }
+    }
+
+    private var engineNote: some View {
+        Label(FoodRecognizer.usesDedicatedModel ? "On-device food model" : "On-device general classifier",
+              systemImage: "cpu")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
     }
 
     private var guessList: some View {

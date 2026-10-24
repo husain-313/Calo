@@ -1,6 +1,7 @@
 import Foundation
 #if canImport(Vision)
 import Vision
+import CoreML
 #endif
 #if canImport(UIKit)
 import UIKit
@@ -19,13 +20,51 @@ struct FoodGuess: Identifiable, Hashable {
 enum FoodRecognizer {
 
     #if canImport(Vision) && canImport(UIKit)
+
+    /// Lazily loaded bundled Core ML food model, if one was shipped.
+    /// Falls back to Vision's built-in classifier when absent, so the app
+    /// builds and runs with or without the model file.
+    private static let coreMLModel: VNCoreMLModel? = {
+        let names = ["FoodModel", "Food101", "FoodClassifier"]
+        let exts = ["mlmodelc", "mlpackage", "mlmodel"]
+        for name in names {
+            for ext in exts {
+                guard let url = Bundle.main.url(forResource: name, withExtension: ext) else { continue }
+                if let ml = try? MLModel(contentsOf: compiledURL(url)),
+                   let vn = try? VNCoreMLModel(for: ml) {
+                    return vn
+                }
+            }
+        }
+        return nil
+    }()
+
+    /// Compile a raw .mlmodel/.mlpackage on first use; pass through an
+    /// already-compiled .mlmodelc.
+    private static func compiledURL(_ url: URL) -> URL {
+        if url.pathExtension == "mlmodelc" { return url }
+        return (try? MLModel.compileModel(at: url)) ?? url
+    }
+
+    /// True when a dedicated food model is bundled (shown in the UI).
+    static var usesDedicatedModel: Bool { coreMLModel != nil }
+
     static func classify(_ image: UIImage) async -> [FoodGuess] {
         guard let cg = image.cgImage else { return [] }
         return await withCheckedContinuation { cont in
-            let request = VNClassifyImageRequest { req, _ in
-                let obs = (req.results as? [VNClassificationObservation]) ?? []
-                let guesses = rank(obs)
-                cont.resume(returning: guesses)
+            let request: VNImageBasedRequest
+            if let model = coreMLModel {
+                let r = VNCoreMLRequest(model: model) { req, _ in
+                    let obs = (req.results as? [VNClassificationObservation]) ?? []
+                    cont.resume(returning: rankModel(obs))
+                }
+                r.imageCropAndScaleOption = .centerCrop
+                request = r
+            } else {
+                request = VNClassifyImageRequest { req, _ in
+                    let obs = (req.results as? [VNClassificationObservation]) ?? []
+                    cont.resume(returning: rank(obs))
+                }
             }
             let handler = VNImageRequestHandler(cgImage: cg, orientation: cgOrientation(image), options: [:])
             DispatchQueue.global(qos: .userInitiated).async {
@@ -33,6 +72,14 @@ enum FoodRecognizer {
                 catch { cont.resume(returning: []) }
             }
         }
+    }
+
+    /// A dedicated food model already outputs food classes, so trust its
+    /// ranking directly without the generic food/non-food filtering.
+    private static func rankModel(_ obs: [VNClassificationObservation]) -> [FoodGuess] {
+        obs.prefix(8)
+            .filter { $0.confidence > 0.02 }
+            .map { FoodGuess(label: prettify($0.identifier), confidence: Double($0.confidence)) }
     }
 
     /// Keep plausible food labels, prefer known food terms, drop noise.

@@ -26,6 +26,21 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Fetch Core ML food model (optional)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Bundle the Snap It food model if a model release exists.
+          # If it doesn't, the app falls back to Vision's built-in classifier.
+          if gh release download model-latest --pattern 'FoodModel.mlpackage.zip' --dir Calo/Resources 2>/dev/null; then
+            cd Calo/Resources
+            unzip -qo FoodModel.mlpackage.zip
+            rm -f FoodModel.mlpackage.zip
+            echo "Bundled FoodModel.mlpackage"
+          else
+            echo "No model release yet — building with Vision fallback."
+          fi
+
       - name: Generate Xcode project
         run: xcodegen generate
 

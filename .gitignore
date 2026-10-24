@@ -15,5 +15,10 @@ Payload/
 .build/
 .swiftpm/
 
+# Core ML model is published as a release asset, not committed (GitHub 100 MB limit)
+Calo/Resources/FoodModel.mlpackage/
+Calo/Resources/FoodModel.mlpackage.zip
+*.mlmodelc/
+
 # Misc
 *.log
