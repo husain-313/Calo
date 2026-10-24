@@ -49,7 +49,7 @@ struct GoalsView: View {
             } footer: {
                 HStack {
                     Text("Total: \(Int(pctSum * 100))%")
-                        .foregroundStyle(abs(pctSum - 1) < 0.001 ? .secondary : .red)
+                        .foregroundStyle(abs(pctSum - 1) < 0.001 ? Color.secondary : Color.red)
                     Spacer()
                     Text("P \(Fmt.grams(macros.protein)) · C \(Fmt.grams(macros.carbs)) · F \(Fmt.grams(macros.fat))")
                 }
